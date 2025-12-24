@@ -1,0 +1,2 @@
+[console_scripts]
+ppflow = ppflow.cli.main:app

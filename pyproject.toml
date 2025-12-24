@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=65.5.1", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ppflow"
+version = "0.1.0"
+description = "PPFlow: pipeline diagnostic and management tool"
+authors = [
+  { name="Safouene Ziadi", email="ziadisafouene@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+ppflow = "ppflow.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["ppflow"]
+
+[project.optional-dependencies]
+dev = ["click"]

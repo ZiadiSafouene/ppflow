@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: ppflow
+Version: 0.1.0
+Summary: PPFlow: pipeline diagnostic and management tool
+Author-email: Safouene Ziadi <ziadisafouene@gmail.com>
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+Requires-Dist: click; extra == "dev"
