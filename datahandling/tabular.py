@@ -3,12 +3,24 @@ import numpy as np
 from scipy.stats import skew, kurtosis
 from .models import DatasetIdentity
 
+COMMON_ENCODINGS = ["utf-8", "latin-1", "cp1252"]
+
+def safe_read_csv(path, nrows=5000):
+    last_error = None
+    for enc in COMMON_ENCODINGS:
+        try:
+            return pd.read_csv(path, encoding=enc, nrows=nrows), enc
+        except UnicodeDecodeError as e:
+            last_error = e
+    raise last_error
+
 def identify_tabular_dataset(files, root):
     file = next(f for f in files if f.suffix.lower() in {".csv", ".tsv", ".json"})
-    df = pd.read_csv(file, nrows=5000)
+    df, encoding = safe_read_csv(file, nrows=5000)
 
     form = detect_tabular_form(df)
     profile = profile_tabular(df)
+    profile["encoding"] = encoding
 
     return DatasetIdentity(
         root=root,
@@ -22,8 +34,21 @@ def detect_tabular_form(df):
         if df[col].apply(lambda x: isinstance(x, (list, dict))).any():
             return "nested"
 
-    if df.select_dtypes(include=["object"]).nunique().min() < len(df) * 0.05:
-        return "long"
+    n_rows = len(df)
+    n_cols = len(df.columns)
+
+    object_cols = df.select_dtypes(include=["object", "string"]).columns
+
+    if n_cols <= 4 and len(object_cols) >= 1:
+        id_candidates = [
+            col for col in object_cols
+            if df[col].nunique() < n_rows * 0.5
+        ]
+
+        numeric_cols = df.select_dtypes(include=np.number).columns
+
+        if id_candidates and len(numeric_cols) == 1:
+            return "long"
 
     return "wide"
 
@@ -36,6 +61,75 @@ def detect_time_series(df):
                 "monotonic": parsed.is_monotonic_increasing
             }
     return None
+
+def classify_tabular_semantics(df):
+    text_cols = []
+    total_text_chars = 0
+
+    for col in df.select_dtypes(include=["object", "string"]).columns:
+        lengths = df[col].dropna().astype(str).str.len()
+        if lengths.empty:
+            continue
+
+        avg_len = lengths.mean()
+        uniqueness = df[col].nunique() / len(df)
+
+        if avg_len >= 30 and uniqueness >= 0.5:
+            text_cols.append(col)
+            total_text_chars += lengths.sum()
+
+    numeric_cols = df.select_dtypes(include=np.number).columns
+
+    if not text_cols:
+        return {
+            "semantic_type": "numeric_tabular"
+        }
+
+    total_chars = sum(
+        df[col].dropna().astype(str).str.len().sum()
+        for col in df.select_dtypes(include=["object", "string"]).columns
+    )
+
+    text_ratio = total_text_chars / max(total_chars, 1)
+
+    if text_ratio >= 0.4 and len(numeric_cols) <= 3:
+        return {
+            "semantic_type": "nlp_tabular",
+            "text_columns": text_cols
+        }
+
+    return {
+        "semantic_type": "numeric_tabular"
+    }
+
+def assess_tabular_quality(df):
+    quality = {}
+
+    # Missing values
+    missing = df.isna().mean()
+    quality["high_missing_columns"] = missing[missing > 0.3].index.tolist()
+
+    # Constant columns
+    quality["constant_columns"] = [
+        col for col in df.columns if df[col].nunique() <= 1
+    ]
+
+    # Duplicate rows
+    dup_ratio = df.duplicated().mean()
+    if dup_ratio > 0:
+        quality["duplicate_row_ratio"] = float(dup_ratio)
+
+    # NLP-specific noise
+    text_cols = df.select_dtypes(include=["object", "string"]).columns
+    empty_text = [
+        col for col in text_cols
+        if (df[col].astype(str).str.strip() == "").mean() > 0.1
+    ]
+
+    if empty_text:
+        quality["empty_text_columns"] = empty_text
+
+    return quality
 
 def profile_tabular(df):
     profile = {}
@@ -56,5 +150,8 @@ def profile_tabular(df):
     ts = detect_time_series(df)
     if ts:
         profile["time_series"] = ts
+    
+    profile.update(classify_tabular_semantics(df))
+    profile["quality"] = assess_tabular_quality(df)
 
     return profile

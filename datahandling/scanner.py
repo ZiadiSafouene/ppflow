@@ -5,6 +5,7 @@ from .images import identify_image_dataset
 from .text import identify_text_dataset
 from .splits import infer_data_splits
 
+
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tiff"}
 TABULAR_EXTS = {".csv", ".tsv", ".xlsx", ".xls", ".parquet", ".json"}
 

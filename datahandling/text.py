@@ -4,6 +4,17 @@ from langdetect import detect
 from collections import Counter
 from .models import DatasetIdentity
 
+COMMON_ENCODINGS = ["utf-8", "latin-1", "cp1252"]
+
+def safe_read_csv(path, nrows=5000):
+    last_error = None
+    for enc in COMMON_ENCODINGS:
+        try:
+            return pd.read_csv(path, encoding=enc, nrows=nrows), enc
+        except UnicodeDecodeError as e:
+            last_error = e
+    raise last_error
+
 def identify_text_dataset(files, root):
     if all(f.suffix == ".txt" for f in files):
         form = "raw_text"
@@ -27,7 +38,7 @@ def profile_raw_text(files):
     return {"encodings": list(encodings)}
 
 def profile_structured_text(files):
-    df = pd.read_csv(files[0], nrows=5000)
+    df ,encoding= safe_read_csv(files[0], nrows=5000)
     text_cols = [c for c in df.columns if df[c].astype(str).str.len().mean() > 30]
 
     languages = {}
@@ -43,5 +54,6 @@ def profile_structured_text(files):
     return {
         "text_columns": text_cols,
         "languages": languages,
-        "multilingual": any(len(v) > 1 for v in languages.values())
+        "multilingual": any(len(v) > 1 for v in languages.values()),
+        "encoding": encoding
     }

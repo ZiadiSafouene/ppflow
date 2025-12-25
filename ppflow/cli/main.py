@@ -2,6 +2,10 @@
 import sys
 import click  # optional, can also use argparse
 from datahandling.scanner import scan_data
+import warnings
+warnings.filterwarnings("ignore")
+from datahandling.ui.renderer import render_dataset_identity
+
 
 @click.group()
 def app():
@@ -17,11 +21,7 @@ def scan():
     print("Scanning data pipelines...")
     dataset = scan_data()
     
-    print ("Dataset identified at :", dataset.root)
-    print ("Dataset Type :", dataset.container_type)
-    print ("Dataset Form :", dataset.structural_form)
-    print ("Dataset Details :", dataset.details)
-    
+    render_dataset_identity(dataset)
    
 
 @app.command()
