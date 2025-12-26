@@ -4,7 +4,7 @@ import pandas as pd
 def infer_data_splits(root: Path, files):
     splits = {}
 
-    for split in ["train", "val", "test"]:
+    for split in ["train", "val", "test","training","testing","validation"]:
         d = root / split
         if d.exists():
             splits[split] = len(list(d.rglob("*")))
