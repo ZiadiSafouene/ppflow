@@ -33,7 +33,7 @@ def scan():
 @click.option("--fix", is_flag=True, help="Ask user to fix issues interactively")
 @click.option("--fixall", is_flag=True, help="Automatically fix all issues")
 def diagnose(fix, fixall):
-    print("Running diagnostics...")
+
     """Run diagnostics on tabular datasets"""
     data_path = Path("data")
     csv_files = list(data_path.glob("*.csv"))
