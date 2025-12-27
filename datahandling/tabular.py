@@ -199,7 +199,7 @@ def profile_tabular(df):
     }
 
     profile["type_mismatches"] = [
-        col for col in df.columns if df[col].map(type).nunique() > 3
+        col for col in df.columns if df[col].map(type).nunique() > 1
     ]
 
     ts = detect_time_series(df)
