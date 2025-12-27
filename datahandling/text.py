@@ -37,23 +37,43 @@ def profile_raw_text(files):
         encodings.add(chardet.detect(raw)["encoding"])
     return {"encodings": list(encodings)}
 
-def profile_structured_text(files):
-    df ,encoding= safe_read_csv(files[0], nrows=5000)
+def profile_structured_text(df):
+    
     text_cols = [c for c in df.columns if df[c].astype(str).str.len().mean() > 30]
 
+    LANG_THRESHOLD = 0.15   # 15% of detected texts in the column
+    MIN_SAMPLES = 20        # avoid noise on very small columns
+   
     languages = {}
+
     for col in text_cols:
-        langs = []
+        detections = []
+
         for t in df[col].dropna().astype(str).head(300):
             try:
-                langs.append(detect(t))
+                detections.append(detect(t))
             except Exception:
                 pass
-        languages[col] = dict(Counter(langs))
+
+        total = len(detections)
+
+        if total < MIN_SAMPLES:
+            languages[col] = {}
+            continue
+
+        counts = Counter(detections)
+
+        # keep only languages that pass the threshold
+        filtered = {
+            lang: count
+            for lang, count in counts.items()
+            if (count / total) >= LANG_THRESHOLD
+        }
+
+        languages[col] = filtered
 
     return {
         "text_columns": text_cols,
-        "languages": languages,
+        "languages": languages[col],
         "multilingual": any(len(v) > 1 for v in languages.values()),
-        "encoding": encoding
     }

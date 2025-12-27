@@ -2,7 +2,7 @@ from pathlib import Path
 from PIL import Image
 from .models import DatasetIdentity
 
-SPLITS = {"train", "test", "val","training","testing","validation"}
+SPLITS = {"train", "test", "val", "training", "testing", "validation"}
 
 
 class ImageDirectoryProfiler:
@@ -24,7 +24,7 @@ class ImageDirectoryProfiler:
             d for d in self.root.iterdir()
             if d.is_dir() and d.name in SPLITS
         ]
-        print ("--------------",self.root,split_dirs)
+        # print ("--------------",self.root,split_dirs)
 
         # --------------------------------------------------
         # Case 1: Dataset has train / test / val

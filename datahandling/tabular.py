@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import skew, kurtosis
 from .models import DatasetIdentity
+from .text import profile_structured_text
 
 COMMON_ENCODINGS = ["utf-8", "latin-1", "cp1252"]
 
@@ -95,7 +96,9 @@ def classify_tabular_semantics(df):
     if text_ratio >= 0.4 and len(numeric_cols) <= 3:
         return {
             "semantic_type": "nlp_tabular",
-            "text_columns": text_cols
+            "text_columns": text_cols,
+            "text_detail": profile_structured_text(df)
+
         }
 
     return {
