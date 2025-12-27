@@ -53,15 +53,67 @@ def detect_tabular_form(df):
 
     return "wide"
 
-def detect_time_series(df):
+def detect_time_series(df, sample_size=500, min_parse_ratio=0.8):
+    candidates = []
+
     for col in df.columns:
-        parsed = pd.to_datetime(df[col], errors="coerce")
-        if parsed.notna().mean() > 0.8:
-            return {
-                "time_column": col,
-                "monotonic": parsed.is_monotonic_increasing
-            }
-    return None
+        series = df[col].dropna()
+
+        # Skip small or constant columns
+        if series.nunique() < 10:
+            continue
+
+        # Sample for speed
+        sample = series.astype(str).head(sample_size)
+
+        parsed = pd.to_datetime(sample, errors="coerce", infer_datetime_format=True)
+
+        parse_ratio = parsed.notna().mean()
+        if parse_ratio < min_parse_ratio:
+            continue
+
+        parsed = parsed.dropna()
+
+        # Must be mostly ordered
+        monotonic_ratio = (parsed.diff().dropna() >= pd.Timedelta(0)).mean()
+        if monotonic_ratio < 0.9:
+            continue
+
+        # Temporal spacing consistency
+        deltas = parsed.sort_values().diff().dropna()
+        if len(deltas) < 5:
+            continue
+
+        delta_std = deltas.std().total_seconds()
+        delta_mean = deltas.mean().total_seconds()
+
+        # Avoid random / categorical dates
+        if delta_mean == 0 or delta_std / delta_mean > 1.0:
+            continue
+
+        candidates.append({
+            "column": col,
+            "parse_ratio": round(parse_ratio, 3),
+            "monotonic_ratio": round(monotonic_ratio, 3),
+            "mean_delta_seconds": round(delta_mean, 2),
+            "delta_variability": round(delta_std / delta_mean, 3)
+        })
+
+    if not candidates:
+        return None
+
+    # Choose the most reliable candidate
+    best = max(candidates, key=lambda x: (x["parse_ratio"], x["monotonic_ratio"]))
+
+    return {
+        "time_column": best["column"],
+        "confidence": {
+            "parse_ratio": best["parse_ratio"],
+            "monotonic_ratio": best["monotonic_ratio"]
+        },
+        "temporal_resolution_seconds": best["mean_delta_seconds"]
+    }
+
 
 def classify_tabular_semantics(df):
     text_cols = []
@@ -151,8 +203,8 @@ def profile_tabular(df):
     ]
 
     ts = detect_time_series(df)
-    if ts:
-        profile["time_series"] = ts
+    # if ts:
+    #     profile["time_series"] = ts
     
     profile.update(classify_tabular_semantics(df))
     profile["quality"] = assess_tabular_quality(df)

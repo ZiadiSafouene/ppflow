@@ -62,6 +62,9 @@ def profile_structured_text(df):
             continue
 
         counts = Counter(detections)
+        # text_blob = " ".join(df[col].dropna().astype(str).head(300))
+        # lang = detect(text_blob)
+        # languages[col] = {lang: 1.0}
 
         # keep only languages that pass the threshold
         filtered = {

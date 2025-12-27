@@ -20,7 +20,7 @@ def init():
 def scan():
     print("Scanning data pipelines...")
     dataset = scan_data()
-    
+
     render_dataset_identity(dataset)
    
 
