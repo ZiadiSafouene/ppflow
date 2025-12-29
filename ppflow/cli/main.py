@@ -34,17 +34,7 @@ def scan():
 @click.option("--fixall", is_flag=True, help="Automatically fix all issues")
 def diagnose(fix, fixall):
 
-    """Run diagnostics on tabular datasets"""
-    data_path = Path("data")
-    csv_files = list(data_path.glob("*.csv"))
-
-    if not csv_files:
-        print("No tabular files found in 'data' folder.")
-        return
-
-    for csv in csv_files:
-        print(f"Running diagnostics for {csv.name}...")
-        run_diagnostics(csv, fix=fix, fixall=fixall)
+    run_diagnostics(fix=fix, fixall=fixall)
 
 @app.command()
 def logs():

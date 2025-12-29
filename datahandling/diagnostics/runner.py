@@ -2,6 +2,8 @@ import shutil
 from pathlib import Path
 from .tabular import run_tabular_diagnostics
 import click
+from datahandling.scanner import scan_data
+from datahandling.diagnostics.images import run_image_diagnostics
 
 SEVERITY_STYLE = {
     "low": {"fg": "blue"},
@@ -28,57 +30,93 @@ def display_issues(issues):
         click.echo()
 
 
-def run_diagnostics(input_path: Path, fix=False, fixall=False) -> Path:
+from pathlib import Path
+import shutil
+import click
+
+
+def run_diagnostics(input_path: Path | None = None, fix=False, fixall=False) -> Path | None:
     """
-    Run diagnostics on the dataset at input_path.
+    Run diagnostics on the dataset.
+
     If fix=True: ask user for each fix.
     If fixall=True: apply all fixes automatically.
-    Returns path to the fixed dataset.
+    Returns path to the fixed dataset, or None if no fixes applied.
     """
-    click.secho(
-        f"\nRunning diagnostics for {(Path(input_path)).name}\n",
-        fg="cyan",
-        bold=True
-    )
 
-    # Detect issues
-    issues = run_tabular_diagnostics(input_path)
+    click.secho("\nRunning diagnostics...\n", fg="cyan", bold=True)
+
+    # Scan dataset (NO params)
+    dataset = scan_data()
+    input_root = Path(dataset.root).resolve()
+
+    # ------------------------------
+    # Run diagnostics
+    # ------------------------------
+    if dataset.container_type == "table":
+        issues = run_tabular_diagnostics(input_root)
+    elif dataset.container_type == "image":
+        issues = run_image_diagnostics(input_root)
+    else:
+        raise ValueError(f"Unsupported container type: {dataset.container_type}")
 
     if not issues:
         click.secho("✓ No issues detected", fg="green", bold=True)
-        return
+        return None
 
     display_issues(issues)
 
+    # Diagnostics-only mode
     if not fix and not fixall:
         click.secho("End of diagnostics. No fixes applied.", fg="yellow")
-        return
-    
+        return None
 
-    input_path = Path(input_path)
-    fixed_dir = input_path.parent / "data_fixed"
-    fixed_dir.mkdir(exist_ok=True)
-    current_file = fixed_dir / input_path.name
+    # ------------------------------
+    # Prepare FIXED dataset (write-only)
+    # ------------------------------
+    fixed_root = input_root.parent / f"{input_root.name}_fixed"
 
-    # Copy original dataset first
-    shutil.copy(input_path, current_file)
+    # HARD SAFETY CHECK (prevents your crashes)
+    if fixed_root.resolve() == input_root:
+        raise RuntimeError("Fixed dataset cannot overwrite input dataset.")
 
+    if fixed_root.exists():
+        shutil.rmtree(fixed_root)
 
-    for i, issue in enumerate(issues, start=1):
-        print(f"{i}. [{issue.severity}] {issue.description}")
-        if fix or fixall:
-            apply = fixall
-            if fix and not fixall:
-                choice = click.prompt(
-                        f"Apply fix for '{issue.id}'",
-                        type=click.Choice(["y", "n"]),
-                        default="n"
-                    )
-                apply = choice.lower() == "y"
-            if apply:
-                # Apply fix
-                issue.apply_fix(current_file, current_file)
-                click.secho(f"Applied fix: {issue.fix_description}", fg="green")
+    # Copy ONCE
+    if input_root.is_file():
+        fixed_root.mkdir(parents=True)
+        current_path = fixed_root / input_root.name
+        shutil.copy2(input_root, current_path)
+    else:
+        shutil.copytree(input_root, fixed_root)
+        current_path = fixed_root
 
-    click.secho(f"Fixed dataset saved at: {current_file}", fg="green")
-    return current_file
+    # ------------------------------
+    # Apply fixes (ONLY inside fixed_root)
+    # ------------------------------
+    for issue in issues:
+        apply = fixall
+
+        if fix and not fixall:
+            choice = click.prompt(
+                f"Apply fix for '{issue.id}'?",
+                type=click.Choice(["y", "n"]),
+                default="n",
+            )
+            apply = choice.lower() == "y"
+
+        if apply:
+            issue.apply_fix(
+                input_path=input_root,     # READ-ONLY
+                output_path=current_path   # WRITE-ONLY
+            )
+            click.secho(f"✔ Applied: {issue.fix_description}", fg="green")
+
+    click.secho(
+        f"\nFixed dataset saved at: {current_path}",
+        fg="green",
+        bold=True,
+    )
+
+    return current_path
